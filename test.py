@@ -6,10 +6,43 @@ from torchvision import transforms
 from torchvision.utils import save_image
 from tqdm import tqdm
 import os
+from PIL import Image, ImageDraw, ImageFont
+import numpy as np
 
 from model import MINIM
 from utils import MedicalImageDataset
 
+font = ImageFont.load_default()
+
+def combineImg(pred_octa_clamped, octa_batch_clamped):
+    # 处理张量 -> numpy 数组，并确保它的形状是 (H, W) 或 (H, W, 3)
+    true_img_array = (octa_batch_clamped.squeeze().cpu().numpy() * 255).astype(np.uint8)  # 形状 (256, 256)
+    pred_img_array = (pred_octa_clamped.squeeze().cpu().numpy() * 255).astype(np.uint8)
+
+    # 转换为 PIL 图像
+    true_img = Image.fromarray(true_img_array, mode="L")  # 灰度图
+    pred_img = Image.fromarray(pred_img_array, mode="L")
+
+    true_img = true_img.convert("RGB")
+    pred_img = pred_img.convert("RGB")
+
+    width, height = true_img.size
+    new_height = height + 30  # 额外添加 30px 作为标签区域
+
+    # 创建空白画布
+    combined_img = Image.new("RGB", (width * 2, new_height), (255, 255, 255))
+
+    # 拼接图片
+    combined_img.paste(true_img, (0, 50))
+    combined_img.paste(pred_img, (width, 50))
+
+    # 添加文本标签
+    draw = ImageDraw.Draw(combined_img)
+    text_y = 10  # 文字位置
+    draw.text((width // 4, text_y), "True OCTA", fill=(0, 0, 0), font=font)
+    draw.text((width + width // 4, text_y), "Synthetic OCTA", fill=(0, 0, 0), font=font)
+
+    return combined_img
 
 def test():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -25,7 +58,7 @@ def test():
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
 
     model = MINIM(if_embed=False).to(device)
-    checkpoint_path = "./train/checkpoint_epoch_3.pth"
+    checkpoint_path = "./train/checkpoint_epoch_10.pth"
     model.load_state_dict(torch.load(checkpoint_path))
     model.eval()
 
@@ -34,6 +67,7 @@ def test():
 
     test_result_path = "./test"
     num = len([d for d in os.listdir(test_result_path) if os.path.isdir(os.path.join(test_result_path, d))]) + 1
+    result_dir = os.path.join(test_result_path, f"result_{num}")
     output_dir = os.path.join(test_result_path, f"result_{num}", "output")
     os.makedirs(output_dir, exist_ok=True)
 
@@ -52,19 +86,18 @@ def test():
             pred_octa_clamped = torch.clamp(pred_octa, 0, 1)
             octa_batch_clamped = torch.clamp(octa_batch, 0, 1)
 
-            # 拼接图片（左侧为真实，右侧为生成）
-            combined = torch.cat((octa_batch_clamped, pred_octa_clamped), dim=3)  # 在宽度维度拼接
-            save_image(combined, os.path.join(output_dir, f"test_{i:04d}.png"))
+            combined_img = combineImg(pred_octa_clamped, octa_batch_clamped)
+            combined_img.save(os.path.join(output_dir, f"test_{i:04d}.png"))
 
             tqdm.write(f"Sample {i}, Loss: {loss:.6f}")
-            with open(os.path.join(output_dir, "test_log.txt"), "a") as f:
+            with open(os.path.join(result_dir, "test_log.txt"), "a") as f:
                 f.write(f"Sample {i}, Loss: {loss:.6f}\n")
 
             sample_id += 1
 
     avg_loss = total_loss / sample_id
     tqdm.write(f"Sample {sample_id}, Loss: {loss:.6f}")
-    with open(os.path.join(output_dir, "test_log.txt"), "a") as f:
+    with open(os.path.join(result_dir, "test_log.txt"), "a") as f:
         f.write(f"Average Loss: {avg_loss:.6f}\n")
 
 

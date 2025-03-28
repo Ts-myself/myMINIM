@@ -7,7 +7,7 @@ from tqdm import tqdm
 import math
 import os
 
-from model import *
+from model_wyt import *
 from utils import MedicalImageDataset
 
 # Define diffusion parameters
@@ -37,7 +37,7 @@ def main():
     train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 
     # Initialize model
-    model = MINIM(if_embed=False).to(device)
+    model = MINIM().to(device)
 
     # Load checkpoint if available
     checkpoint_path = "./train/checkpoint_epoch_10.pth"
@@ -54,7 +54,7 @@ def main():
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 
     # Training loop
-    num_epochs = 3
+    num_epochs = 5
     for epoch in range(num_epochs):
         model.train()
         progress_bar = tqdm(train_loader)
@@ -64,10 +64,10 @@ def main():
             b = octa_batch.size(0)
 
             # Sample timestep t
-            t = torch.randint(0, T, (b,), device=device).long()
+            # t = torch.randint(0, T, (b,), device=device).long()
 
             # Forward pass
-            pred = model(oct_batch, None, t.float())
+            pred = model(oct_batch)
 
             # Loss
             loss = F.mse_loss(pred, octa_batch)
@@ -81,7 +81,7 @@ def main():
             progress_bar.set_description(f"Epoch {epoch+1}, Loss: {loss.item():.4f}")
 
         # Checkpointing
-        torch.save(model.state_dict(), f"./train/checkpoint_epoch_{epoch+1+10}.pth")
+        torch.save(model.state_dict(), f"./train/wyt1/checkpoint_epoch_{epoch+1+10}.pth")
 
 
 if __name__ == "__main__":
