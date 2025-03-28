@@ -60,3 +60,59 @@ class MedicalImageDataset(Dataset):
             oct_img = self.transform(oct_img)
             octa_img = self.transform(octa_img)
         return oct_img, octa_img
+
+class OCTADataset(Dataset):
+    def __init__(self, root, transform=None):
+        self.root = root
+        self.oct_dir = os.path.join(root, "OCT")
+        self.octa_dir = os.path.join(root, "OCTA")
+        self.label_file = os.path.join(root, "Text label.xlsx")
+        self.transform = transform
+
+        # 读取Excel文件，加载标签信息
+        self.labels_df = pd.read_excel(self.label_file)
+        # 构造ID与disease的映射，ID均转换为字符串格式
+        self.id_to_label = {str(row['ID']): row['Disease'] for _, row in self.labels_df.iterrows()}
+
+        # 构建所有配对（pair）的列表，每个元素包含 (oct_path, octa_path, disease)
+        self.pairs = []
+        # 遍历 OCT 文件夹中的每个患者文件夹
+        patient_ids = os.listdir(self.oct_dir)
+        for pid in patient_ids:
+            # 检查该患者是否在 OCTA 中存在，并且有标签记录
+            if (pid in os.listdir(self.octa_dir)) and (pid in self.id_to_label):
+                oct_patient_dir = os.path.join(self.oct_dir, pid)
+                octa_patient_dir = os.path.join(self.octa_dir, pid)
+
+                # 获取当前患者所有bmp图片的文件名，并排序（假设文件名数字越小，顺序越靠前）
+                oct_files = sorted([f for f in os.listdir(oct_patient_dir) if f.lower().endswith('.bmp')])
+                octa_files = sorted([f for f in os.listdir(octa_patient_dir) if f.lower().endswith('.bmp')])
+                
+                # 以较少的图片数为准，进行配对
+                n = min(len(oct_files), len(octa_files))
+                for i in range(n):
+                    oct_path = os.path.join(oct_patient_dir, oct_files[i])
+                    octa_path = os.path.join(octa_patient_dir, octa_files[i])
+                    disease = self.id_to_label[pid]
+                    self.pairs.append((oct_path, octa_path, disease))
+                    
+    def __len__(self):
+        return len(self.pairs)
+
+    def __getitem__(self, idx):
+        oct_path, octa_path, disease = self.pairs[idx]
+        # 打开图片
+        oct_img = Image.open(oct_path)
+        octa_img = Image.open(octa_path)
+        
+        # 如果有预处理函数，则应用
+        if self.transform:
+            oct_img = self.transform(oct_img)
+            octa_img = self.transform(octa_img)
+        
+        sample = {
+            'oct_image': oct_img,
+            'octa_image': octa_img,
+            'disease': disease
+        }
+        return sample
