@@ -48,7 +48,7 @@ def train():
     # training loop
     model.train()
     for epoch in range(epochs):
-        progress_bar = tqdm(train_loader)
+        progress_bar = tqdm(train_dataloader)
         for oct, octa, disease in progress_bar:
             oct, octa = oct.to(device), octa.to(device)
             synth = model(octa, T, oct, disease)

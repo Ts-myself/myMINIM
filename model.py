@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
-from transformers import BertModel, BertTokenizer
+from transformers import BertModel, BertTokenizer, ViTModel
 
 
 # 时间嵌入模块，用于扩散时间步
