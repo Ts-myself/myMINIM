@@ -9,8 +9,9 @@ import os
 import datetime
 
 from model import *
-from utils import MedicalImageDataset
+from utils import *
 
+log = Logger()
 # parameters
 T = 1000
 beta_min = 1e-4
@@ -22,10 +23,6 @@ def train():
     epochs = 3
     lr = 1e-4
 
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    save_dir = os.path.join('myMINIM/train', timestamp)
-    os.makedirs(save_dir, exist_ok=True)
-
     # load data
     train_data_path = 'dataset/OCTA500/OCTA_3mm'
     transform = transforms.Compose([
@@ -34,11 +31,19 @@ def train():
     ])
     train_dataset = OCTADataset(train_data_path, transform)
     train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+    log.info('data loaded')
 
     # init model
     model = MINIM(beta_min, beta_max, T, hidden_dim, num_attention_heads)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     criterion = nn.MSELoss()
+    log.info('model initalized')
+
+    # craete folder
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    save_dir = os.path.join('myMINIM/train', timestamp)
+    os.makedirs(save_dir, exist_ok=True)
+    log.info('save_dir created')
 
     # training loop
     model.train()
@@ -112,4 +117,4 @@ def train():
 
 
 if __name__ == "__main__":
-    main()
+    train()

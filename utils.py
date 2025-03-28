@@ -1,6 +1,8 @@
 import os
 from PIL import Image
 from torch.utils.data import Dataset
+import datetime
+import pandas as pd
 
 class MedicalImageDataset(Dataset):
     def __init__(self, root, split='train', transform=None):
@@ -66,7 +68,7 @@ class OCTADataset(Dataset):
         self.root = root
         self.oct_dir = os.path.join(root, "OCT")
         self.octa_dir = os.path.join(root, "OCTA")
-        self.label_file = os.path.join(root, "Text label.xlsx")
+        self.label_file = os.path.join(root, "Text labels.xlsx")
         self.transform = transform
 
         # 读取Excel文件，加载标签信息
@@ -116,3 +118,25 @@ class OCTADataset(Dataset):
             'disease': disease
         }
         return sample
+
+
+class Logger:
+    def __init__(self):
+        self.levels = {
+            "INFO": "\033[92m[INFO]\033[0m",   # 绿色
+            "WARN": "\033[93m[WARN]\033[0m",   # 黄色
+            "ERROR": "\033[91m[ERROR]\033[0m", # 红色
+        }
+
+    def log(self, level, message):
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print(f"{timestamp} {self.levels.get(level, '[LOG]')} {message}")
+
+    def info(self, message):
+        self.log("INFO", message)
+
+    def warn(self, message):
+        self.log("WARN", message)
+
+    def error(self, message):
+        self.log("ERROR", message)
