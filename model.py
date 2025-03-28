@@ -109,22 +109,8 @@ class SimpleUNet(nn.Module):
         output = self.out(x7)  # (b, out_channels, H, W)
         return output
 
-
-# # MINIM 类主实现
-# class MINIM(nn.Module):
-#     def __init__(self, vocab_size, embedding_dim, hidden_dim=128, if_embed=True):
-#         super().__init__()
-#         # self.text_encoder = TextEncoder(vocab_size=vocab_size, embedding_dim=embedding_dim, hidden_dim=hidden_dim)
-#         self.unet = SimpleUNet(in_channels=3, out_channels=3, text_dim=hidden_dim, if_embed=if_embed)  # 示例：RGB 输入/输出
-
-#     def forward(self, images, texts, t):
-#         text_emb = self.text_encoder(texts)  # (seq_len, b, hidden_dim)
-#         output = self.unet(images, text_emb, t)
-#         return output
-
-
 # Define modified MINIM class without text embedding
-class MINIM(nn.Module):
+class MINIM_0(nn.Module):
     def __init__(self, if_embed=True):
         super().__init__()
         self.if_embed = if_embed
@@ -138,3 +124,68 @@ class MINIM(nn.Module):
         text_emb = None
         output = self.unet(images, text_emb, t)
         return output
+
+class MINIM(nn.Module):
+    def __init__(self, beta_min=1e-4, beta_max=0.02, T=1000, hidden_dim=256, num_attention_heads=8):
+        super(MINIM, self).__init__()
+        self.beta_min = beta_min
+        self.beta_max = beta_max
+        self.T = T
+        self.hidden_dim = hidden_dim
+        
+        self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        self.bert = BertModel.from_pretrained('bert-base-uncased')
+        
+        # Unet
+        self.conv1 = nn.Conv2d(in_channels=1, out_channels=hidden_dim, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(in_channels=hidden_dim, out_channels=hidden_dim, kernel_size=3, padding=1)
+        
+        # cross-attention: shallow for mode, deep for text
+        self.cross_attn_shallow = nn.MultiheadAttention(embed_dim=hidden_dim, num_heads=num_attention_heads, batch_first=True)
+        self.cross_attn_deep = nn.MultiheadAttention(embed_dim=hidden_dim, num_heads=num_attention_heads, batch_first=True)
+        
+        self.out_conv = nn.Conv2d(in_channels=hidden_dim, out_channels=1, kernel_size=3, padding=1)
+        
+    def noise_schedule(self, t):
+        return self.beta_min + t * ((self.beta_max - self.beta_min) / self.T)
+    
+    def forward_diffusion(self, image, t):
+        beta_t = self.noise_schedule(t)
+        noise = torch.randn_like(image)
+        noisy_image = math.sqrt(1 - beta_t) * image + math.sqrt(beta_t) * noise
+        return noisy_image, noise
+    
+    def cross_attention(self, x, text_emb, attn_layer):
+        B, C, H, W = x.size()
+        x_flat = x.view(B, C, -1).permute(0, 2, 1)  # [B, seq_len, C]
+        # input size [B, seq_len, embed_dim]
+        attn_output, _ = attn_layer(x_flat, text_emb, text_emb)
+        # reshape to original
+        attn_output = attn_output.permute(0, 2, 1).view(B, C, H, W)
+        return attn_output
+
+    def reverse_diffusion(self, noisy_image, t, modality_text, description_text):
+        modality_tokens = self.tokenizer(modality_text, return_tensors="pt", padding=True, truncation=True)
+        description_tokens = self.tokenizer(description_text, return_tensors="pt", padding=True, truncation=True)
+        modality_emb = self.bert(**modality_tokens).last_hidden_state  # [B, seq_len, hidden_dim]
+        description_emb = self.bert(**description_tokens).last_hidden_state  # [B, seq_len, hidden_dim]
+        
+        x = self.conv1(noisy_image)  # [B, hidden_dim, H, W]
+        
+        # shallow Unet
+        x = self.cross_attention(x, modality_emb, self.cross_attn_shallow)
+        # deep Unet
+        x = self.conv2(x)
+        x = self.cross_attention(x, description_emb, self.cross_attn_deep)
+        
+        mu_theta = self.out_conv(x)
+        
+        sigma_t = self.noise_schedule(t)
+        noise = torch.randn_like(mu_theta)
+        x_prev = mu_theta + math.sqrt(sigma_t) * noise
+        return x_prev
+
+    def forward(self, image, t, modality_text, description_text):
+        noisy_image, _ = self.forward_diffusion(image, t)
+        x_prev = self.reverse_diffusion(noisy_image, t, modality_text, description_text)
+        return x_prev

@@ -10,14 +10,20 @@ import os
 from model import *
 from utils import MedicalImageDataset
 
-# Define diffusion parameters
+# parameters
 T = 1000
-beta_start = 1e-4
-beta_end = 0.02
-betas = torch.linspace(beta_start, beta_end, T)
-alphas = 1 - betas
-alphas_cumprod = torch.cumprod(alphas, dim=0)
+beta_min = 1e-4
+beta_max = 0.03
+hidden_dim = 256
+num_attention_heads = 8
 
+# def train():
+#     # load data
+#     train_data_path = ''
+#     train_dataset = OCTADataset()
+
+#     model = MINIM(beta_min, beta_max, T, hidden_dim, num_attention_heads)
+    
 
 # Training script
 def main():
@@ -62,25 +68,15 @@ def main():
             oct_batch = oct_batch.to(device)
             octa_batch = octa_batch.to(device)
             b = octa_batch.size(0)
-
-            # Sample timestep t
             t = torch.randint(0, T, (b,), device=device).long()
-
-            # Forward pass
             pred = model(oct_batch, None, t.float())
-
-            # Loss
             loss = F.mse_loss(pred, octa_batch)
-
-            # Backpropagation
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-            # Update progress bar
             progress_bar.set_description(f"Epoch {epoch+1}, Loss: {loss.item():.4f}")
 
-        # Checkpointing
         torch.save(model.state_dict(), f"./train/checkpoint_epoch_{epoch+1+10}.pth")
 
 
