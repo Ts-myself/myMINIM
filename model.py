@@ -133,7 +133,8 @@ class MINIM(nn.Module):
         self.T = T
         self.hidden_dim = hidden_dim
 
-        self.vit_encoder = ViTModel.from_pretrained('google/vit-base-patch16-224-in21k')
+        self.oct_converter = nn.Conv2d(in_channels=1, out_channels=3, kernel_size=1)
+        self.vit_encoder = ViTModel.from_pretrained('myMINIM/huggingface/vit-base-patch16-224-in21k')
         
         self.tokenizer = BertTokenizer.from_pretrained('myMINIM/huggingface/bert-base-uncased')
         self.bert = BertModel.from_pretrained('myMINIM/huggingface/bert-base-uncased')
@@ -166,7 +167,9 @@ class MINIM(nn.Module):
         attn_output = attn_output.permute(0, 2, 1).view(B, C, H, W)
         return attn_output
 
-    def reverse_diffusion(self, noisy_image, t, modality_text, description_text):
+    def reverse_diffusion(self, noisy_image, t, modality_image, description_text):
+        if modality_image.size(1) == 1:
+            modality_image = self.oct_converter(modality_image)
         modality_emb = self.vit_encoder(pixel_values=modality_image).last_hidden_state  # [B, seq_len, hidden_dim]
         
         description_tokens = self.tokenizer(description_text, return_tensors="pt", padding=True, truncation=True)
