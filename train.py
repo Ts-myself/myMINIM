@@ -61,59 +61,59 @@ def train():
         torch.save(model.state_dict(), f"{save_dir}/checkpoint_epoch_{epoch+1}.pth")
 
 
-# # Training script
-# def main():
-#     # Set device
-#     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# Training script
+def train_Unet():
+    # Set device
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-#     # Define transform
-#     transform = transforms.Compose(
-#         [
-#             transforms.Resize((256, 256)),
-#             transforms.ToTensor(),
-#         ]
-#     )
+    # Define transform
+    transform = transforms.Compose(
+        [
+            transforms.Resize((256, 256)),
+            transforms.ToTensor(),
+        ]
+    )
 
-#     # Load dataset
-#     train_dataset = MedicalImageDataset(root="../dataset/OCTA", split="train", transform=transform)
-#     train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+    # Load dataset
+    train_dataset = MedicalImageDataset(root="../dataset/OCTA", split="train", transform=transform)
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 
-#     # Initialize model
-#     model = MINIM(if_embed=False).to(device)
+    # Initialize model
+    model = MINIM_0(if_embed=False).to(device)
 
-#     # Load checkpoint if available
-#     checkpoint_path = "./train/checkpoint_epoch_10.pth"
-#     try:
-#         checkpoint = torch.load(checkpoint_path, map_location=device)
-#         model.load_state_dict(checkpoint)
-#         print(f"Checkpoint loaded successfully from {checkpoint_path}")
-#     except FileNotFoundError:
-#         print("Checkpoint not found, starting from scratch.")
-#     except Exception as e:
-#         print(f"Error loading checkpoint: {e}")
+    # Load checkpoint if available
+    checkpoint_path = "./train/checkpoint_epoch_10.pth"
+    try:
+        checkpoint = torch.load(checkpoint_path, map_location=device)
+        model.load_state_dict(checkpoint)
+        print(f"Checkpoint loaded successfully from {checkpoint_path}")
+    except FileNotFoundError:
+        print("Checkpoint not found, starting from scratch.")
+    except Exception as e:
+        print(f"Error loading checkpoint: {e}")
 
-#     # Optimizer
-#     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+    # Optimizer
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 
-#     # Training loop
-#     num_epochs = 3
-#     for epoch in range(num_epochs):
-#         model.train()
-#         progress_bar = tqdm(train_loader)
-#         for oct_batch, octa_batch in progress_bar:
-#             oct_batch = oct_batch.to(device)
-#             octa_batch = octa_batch.to(device)
-#             b = octa_batch.size(0)
-#             t = torch.randint(0, T, (b,), device=device).long()
-#             pred = model(oct_batch, None, t.float())
-#             loss = F.mse_loss(pred, octa_batch)
-#             optimizer.zero_grad()
-#             loss.backward()
-#             optimizer.step()
+    # Training loop
+    num_epochs = 3
+    for epoch in range(num_epochs):
+        model.train()
+        progress_bar = tqdm(train_loader)
+        for oct_batch, octa_batch in progress_bar:
+            oct_batch = oct_batch.to(device)
+            octa_batch = octa_batch.to(device)
+            b = octa_batch.size(0)
+            t = torch.randint(0, T, (b,), device=device).long()
+            pred = model(oct_batch, None, t.float())
+            loss = F.mse_loss(pred, octa_batch)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
-#             progress_bar.set_description(f"Epoch {epoch+1}, Loss: {loss.item():.4f}")
+            progress_bar.set_description(f"Epoch {epoch+1}, Loss: {loss.item():.4f}")
 
-#         torch.save(model.state_dict(), f"./train/checkpoint_epoch_{epoch+1+10}.pth")
+        torch.save(model.state_dict(), f"./train/checkpoint_epoch_{epoch+1+10}.pth")
 
 
 if __name__ == "__main__":

@@ -9,10 +9,11 @@ import os
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 
-from model import MINIM
-from utils import MedicalImageDataset
+from model import *
+from utils import *
 
 font = ImageFont.load_default()
+
 
 def combineImg(pred_octa_clamped, octa_batch_clamped):
     # 处理张量 -> numpy 数组，并确保它的形状是 (H, W) 或 (H, W, 3)
@@ -44,6 +45,7 @@ def combineImg(pred_octa_clamped, octa_batch_clamped):
 
     return combined_img
 
+
 def test():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -54,25 +56,27 @@ def test():
         ]
     )
 
-    test_dataset = MedicalImageDataset(root="../dataset/OCTA", split="test", transform=transform)
+    # test_dataset = MedicalImageDataset(root="../dataset/OCTA", split="test", transform=transform)
+    test_dataset = OCTADataset(root="dataset/OCTA500/OCTA_3mm", transform=transform)
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
 
-    model = MINIM(if_embed=False).to(device)
-    checkpoint_path = "./train/checkpoint_epoch_10.pth"
+    model = MINIM_0(if_embed=False).to(device)
+    checkpoint_path = "./myMINIM/train/SimpleUnet_weights/checkpoint_epoch_10.pth"
     model.load_state_dict(torch.load(checkpoint_path))
     model.eval()
 
     total_loss = 0.0
     sample_id = 0
 
-    test_result_path = "./test"
+    test_result_path = "./myMINIM/test/SimpleUnet"
     num = len([d for d in os.listdir(test_result_path) if os.path.isdir(os.path.join(test_result_path, d))]) + 1
     result_dir = os.path.join(test_result_path, f"result_{num}")
     output_dir = os.path.join(test_result_path, f"result_{num}", "output")
     os.makedirs(output_dir, exist_ok=True)
 
     with torch.no_grad():
-        for i, (oct_batch, octa_batch) in enumerate(tqdm(test_loader)):
+        for i, item in enumerate(tqdm(test_loader)):
+            oct_batch, octa_batch, disease, oct_path, octa_path = item['oct_image'], item['octa_image'], item['disease'], item['oct_path'], item['octa_path']
             oct_batch = oct_batch.to(device)
             octa_batch = octa_batch.to(device)
             b = oct_batch.size(0)
@@ -86,8 +90,15 @@ def test():
             pred_octa_clamped = torch.clamp(pred_octa, 0, 1)
             octa_batch_clamped = torch.clamp(octa_batch, 0, 1)
 
-            combined_img = combineImg(pred_octa_clamped, octa_batch_clamped)
-            combined_img.save(os.path.join(output_dir, f"test_{i:04d}.png"))
+            # combined_img = combineImg(pred_octa_clamped, octa_batch_clamped)
+            # combined_img.save(os.path.join(output_dir, f"test_{i:04d}.png"))
+            # save the predicted image and name as the octa_path
+            pred_octa_clamped = pred_octa_clamped.squeeze().cpu()
+            pred_octa_clamped = transforms.ToPILImage()(pred_octa_clamped)
+            cur_octa_dir = os.path.join(output_dir, octa_path[0].split("/")[-2])
+            os.makedirs(cur_octa_dir, exist_ok=True)
+            pred_octa_clamped.save(os.path.join(cur_octa_dir, octa_path[0].split("/")[-1]))
+            # save the original image and name as the oct_path
 
             tqdm.write(f"Sample {i}, Loss: {loss:.6f}")
             with open(os.path.join(result_dir, "test_log.txt"), "a") as f:

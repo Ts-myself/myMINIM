@@ -115,7 +115,9 @@ class OCTADataset(Dataset):
         sample = {
             'oct_image': oct_img,
             'octa_image': octa_img,
-            'disease': disease
+            'disease': disease,
+            'oct_path': oct_path,
+            'octa_path': octa_path
         }
         return sample
 
